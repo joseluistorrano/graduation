@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Seniors 2026</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; font-family: sans-serif; background: #000; }
+
+    #pantalla-inicio {
+      position: fixed; inset: 0;
+      background: #000;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 100; gap: 40px;
+    }
+
+    h1 {
+      font-size: 38px; font-weight: 900;
+      color: #FFD700;
+      text-align: center;
+      letter-spacing: 3px;
+      text-shadow: 0 0 30px #D4A01788;
+    }
+
+    .menu-grid {
+      display: flex; flex-direction: row;
+      justify-content: center;
+      gap: 20px; padding: 0 20px;
+    }
+
+    .menu-btn {
+      background: rgba(212,160,23,0.08);
+      border: 1px solid rgba(212,160,23,0.4);
+      border-radius: 20px;
+      padding: 18px 14px 14px;
+      text-align: center; cursor: pointer;
+      width: 100px;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.1s;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 10px;
+    }
+    .menu-btn:active { transform: scale(0.93); }
+
+    .menu-btn img {
+      width: 64px; height: 64px;
+      object-fit: contain;
+    }
+
+    .menu-btn .etiqueta {
+      font-size: 13px; font-weight: 700;
+      color: #FFD700; letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    #escena-ar { display: none; }
+
+    #touch-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      z-index: 500; touch-action: none;
+    }
+
+    #btn-volver {
+      display: none;
+      position: fixed; bottom: 28px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.85); color: #FFD700;
+      border: 1px solid rgba(212,160,23,0.6);
+      border-radius: 30px; padding: 14px 40px;
+      font-size: 15px; font-weight: 700;
+      cursor: pointer; z-index: 999;
+      white-space: nowrap; backdrop-filter: blur(6px);
+    }
+
+    #instruccion {
+      display: none;
+      position: fixed; top: 20px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.8); color: #FFD700;
+      border: 1px solid rgba(212,160,23,0.5);
+      border-radius: 30px; padding: 10px 22px;
+      font-size: 13px; font-weight: 700;
+      z-index: 999; white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+<div id="pantalla-inicio">
+
+  <h1>Seniors 2026</h1>
+
+  <div class="menu-grid">
+    <div class="menu-btn" onclick="abrirAR('photo.jpg')">
+      <img src="birrete.png" alt="birrete" />
+      <div class="etiqueta">Photograph</div>
+    </div>
+    <div class="menu-btn" onclick="abrirAR('msg.jpg')">
+      <img src="birrete.png" alt="birrete" />
+      <div class="etiqueta">Message</div>
+    </div>
+    <div class="menu-btn" onclick="abrirAR('video.jpg')">
+      <img src="birrete.png" alt="birrete" />
+      <div class="etiqueta">Video</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Música -->
+<audio id="musica" src="audio.mp3" loop></audio>
+
+<a-scene
+  id="escena-ar"
+  embedded
+  arjs="sourceType: webcam; debugUIEnabled: false;"
+  renderer="logarithmicDepthBuffer: true; antialias: true;"
+  vr-mode-ui="enabled: false"
+>
+  <a-assets>
+    <img id="infografia-tex" src="" crossorigin="anonymous" />
+  </a-assets>
+  <a-entity id="marcador">
+    <a-image
+      id="plano-info"
+      src="#infografia-tex"
+      width="2.5"
+      height="1.8"
+      position="0 0 -3"
+      rotation="0 0 0"
+      visible="false"
+    ></a-image>
+  </a-entity>
+  <a-entity camera></a-entity>
+</a-scene>
+
+<div id="touch-overlay"></div>
+<button id="btn-volver" onclick="volverMenu()">← Volver</button>
+<div id="instruccion">🎓 Cargando...</div>
+
+<script>
+  var escalaActual = 1;
+  var anchoBase = 2.5;
+  var altoBase = 1.8;
+  var distanciaInicial = 0;
+  var panX = 0, panY = 0;
+  var panInicio = null;
+  var gestosActivos = false;
+  var musicaIniciada = false;
+
+  document.addEventListener('touchstart', function() {
+    if (!musicaIniciada) {
+      document.getElementById('musica').play();
+      musicaIniciada = true;
+    }
+  }, { once: true });
+
+  function abrirAR(archivo) {
+    document.getElementById('pantalla-inicio').style.display = 'none';
+
+    var plano = document.getElementById('plano-info');
+    plano.setAttribute('visible', 'false');
+    plano.setAttribute('src', '');
+    plano.setAttribute('position', '0 0 -3');
+    escalaActual = 1; panX = 0; panY = 0;
+
+    var tex = document.getElementById('infografia-tex');
+    tex.src = '';
+    setTimeout(function() {
+      tex.src = archivo + '?v=' + Date.now();
+      plano.setAttribute('material', 'src: ' + archivo + '?v=' + Date.now() + '; transparent: true;');
+    }, 100);
+
+    document.getElementById('escena-ar').style.display = 'block';
+    document.getElementById('btn-volver').style.display = 'block';
+    document.getElementById('instruccion').style.display = 'block';
+
+    setTimeout(function() {
+      plano.setAttribute('visible', 'true');
+      document.getElementById('instruccion').textContent = '🤏 Pellizca · arrastra para mover';
+      document.getElementById('touch-overlay').style.display = 'block';
+      if (!gestosActivos) {
+        activarGestos();
+        gestosActivos = true;
+      }
+    }, 800);
+  }
+
+  function volverMenu() {
+    document.getElementById('escena-ar').style.display = 'none';
+    document.getElementById('touch-overlay').style.display = 'none';
+    document.getElementById('btn-volver').style.display = 'none';
+    document.getElementById('instruccion').style.display = 'none';
+    document.getElementById('infografia-tex').src = '';
+    document.getElementById('plano-info').setAttribute('visible', 'false');
+    document.getElementById('plano-info').setAttribute('position', '0 0 -3');
+    document.getElementById('pantalla-inicio').style.display = 'flex';
+    escalaActual = 1; panX = 0; panY = 0;
+  }
+
+  function activarGestos() {
+    var overlay = document.getElementById('touch-overlay');
+
+    overlay.addEventListener('touchstart', function(e) {
+      if (e.touches.length === 2) {
+        distanciaInicial = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+      } else if (e.touches.length === 1) {
+        panInicio = {
+          x: e.touches[0].clientX - panX,
+          y: e.touches[0].clientY - panY
+        };
+      }
+    }, { passive: true });
+
+    overlay.addEventListener('touchmove', function(e) {
+      e.preventDefault();
+      var plano = document.getElementById('plano-info');
+      if (e.touches.length === 2) {
+        var dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        var delta = dist / distanciaInicial;
+        escalaActual = Math.min(Math.max(escalaActual * delta, 0.3), 5);
+        plano.setAttribute('width', anchoBase * escalaActual);
+        plano.setAttribute('height', altoBase * escalaActual);
+        distanciaInicial = dist;
+      } else if (e.touches.length === 1 && panInicio) {
+        panX = e.touches[0].clientX - panInicio.x;
+        panY = e.touches[0].clientY - panInicio.y;
+        plano.setAttribute('position', (panX * 0.003) + ' ' + (-panY * 0.003) + ' -3');
+      }
+    }, { passive: false });
+
+    overlay.addEventListener('touchend', function(e) {
+      if (e.touches.length < 1) panInicio = null;
+    }, { passive: true });
+  }
+</script>
+
+</body>
+</html>
